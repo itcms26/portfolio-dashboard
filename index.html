@@ -11,22 +11,22 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
   <style>
     :root {
-      --teal: #1a3a6b;
-      --teal-d: #0f2447;
-      --teal-l: #e8edf5;
-      --aqua: #2d5fa6;
-      --aqua-l: #d0ddf0;
-      --yellow: #f0c93a;
-      --yellow-d: #c9a000;
-      --yellow-l: #fdf6dc;
+      --teal: #4b6f72;
+      --teal-d: #354f51;
+      --teal-l: #e6f2f2;
+      --aqua: #83bdbe;
+      --aqua-l: #d4ecec;
+      --yellow: #efdd96;
+      --yellow-d: #c9b444;
+      --yellow-l: #fdf8e3;
       --coral: #e59e92;
       --coral-l: #fcecea;
-      --dark: #3a3a3a;
-      --black: #0f1c35;
-      --light: #f2f4f8;
+      --dark: #545454;
+      --black: #1c1c1c;
+      --light: #f5f2ed;
       --white: #ffffff;
-      --border: rgba(26, 58, 107, 0.13);
-      --shadow: 0 4px 24px rgba(26, 58, 107, 0.10);
+      --border: rgba(75, 111, 114, 0.13);
+      --shadow: 0 4px 24px rgba(75, 111, 114, 0.10);
       --r: 14px;
       --r-sm: 8px;
     }
@@ -265,7 +265,7 @@
     .loading-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(15, 36, 71, 0.95);
+      background: rgba(53, 79, 81, 0.92);
       z-index: 999;
       display: flex;
       flex-direction: column;
@@ -282,7 +282,7 @@
       width: 40px;
       height: 40px;
       border: 3px solid rgba(255, 255, 255, 0.2);
-      border-top-color: #f0c93a;
+      border-top-color: #efdd96;
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
@@ -477,6 +477,7 @@
       height: 100%;
       border-radius: 100px;
       background: linear-gradient(90deg, var(--teal), var(--aqua));
+      transition: width 1s ease;
     }
 
     .subject-card-grade {
@@ -1096,13 +1097,8 @@
     <!-- ═══════ SIDEBAR ═══════ -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-logo">
-        <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">
-          <div style="width:40px;height:40px;background:var(--yellow);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--teal-d);flex-shrink:0;font-family:'Fraunces',serif;">C</div>
-          <div>
-            <h2>IB PYP Portfolio</h2>
-            <p id="sidebar-year">CMS Muscat · 2025–26</p>
-          </div>
-        </div>
+        <h2>IB PYP Portfolio</h2>
+        <p id="sidebar-year">CMS Muscat · 2025–26</p>
       </div>
       <div class="student-chip">
         <div class="student-avatar">👤</div>
@@ -1338,83 +1334,74 @@
     }
 
     // ── DATA FETCH ─────────────────────────────────────────────────────
- async function fetchPortfolioData() {
-  const url = PORTFOLIO_CONFIG.APPS_SCRIPT_URL;
+    // Uses JSONP — Apps Script must wrap response in callback(data)
+    // The updated Apps Script (v2) handles this via the ?callback= param
+    async function fetchPortfolioData() {
+      const url = PORTFOLIO_CONFIG.APPS_SCRIPT_URL;
 
-  if (!url || url.includes('REPLACE_WITH')) {
-    portfolioData = getSampleData();
-    renderAll();
-    hideLoading();
-    showToast('ℹ️ Using sample data — configure Apps Script URL');
-    return;
-  }
-
-  try {
-    const endpoint = subjectFilter
-      ? `${url}?studentId=${studentId}&subject=${subjectFilter}`
-      : `${url}?studentId=${studentId}`;
-
-    console.log('Fetching:', endpoint);
-
-    const res = await fetch(endpoint, {
-      method: 'GET',
-      redirect: 'follow',
-    });
-
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-
-    const text = await res.text();
-    // Apps Script sometimes wraps in callback or adds BOM — clean it
-    const clean = text.replace(/^\s*\/\*[\s\S]*?\*\/\s*/, '').replace(/^[^{[]*/, '').trim();
-    portfolioData = JSON.parse(clean);
-
-    if (portfolioData.error) throw new Error(portfolioData.error);
-
-    document.getElementById('live-badge').style.display = 'flex';
-    document.getElementById('overview-source').textContent = 'Live from Google Sheets';
-    document.getElementById('grades-source').textContent = 'Live · updates automatically';
-
-    renderAll();
-  } catch (err) {
-    console.error('Fetch error:', err);
-    // Fallback: try JSONP in case of CORS block
-    try {
-      portfolioData = await fetchViaJSONP(url, studentId, subjectFilter);
-      if (portfolioData && !portfolioData.error) {
-        document.getElementById('live-badge').style.display = 'flex';
+      if (!url || url.includes('REPLACE_WITH')) {
+        portfolioData = getSampleData();
         renderAll();
+        hideLoading();
+        showToast('ℹ️ Using sample data — configure Apps Script URL');
         return;
       }
-    } catch(e2) { console.error('JSONP also failed:', e2); }
 
-    showError(`Could not load live data: ${err.message}. Showing sample data.`);
-    portfolioData = getSampleData();
-    renderAll();
-  } finally {
-    hideLoading();
-  }
-}
+      const callbackName = 'portfolioCB_' + Date.now();
+      const endpoint = subjectFilter
+        ? `${url}?studentId=${studentId}&subject=${subjectFilter}&callback=${callbackName}`
+        : `${url}?studentId=${studentId}&callback=${callbackName}`;
 
-function fetchViaJSONP(url, studentId, subjectFilter) {
-  return new Promise((resolve, reject) => {
-    const callbackName = 'cb_' + Date.now();
-    const endpoint = subjectFilter
-      ? `${url}?studentId=${studentId}&subject=${subjectFilter}&callback=${callbackName}`
-      : `${url}?studentId=${studentId}&callback=${callbackName}`;
-    const script = document.createElement('script');
-    const timeout = setTimeout(() => {
-      delete window[callbackName]; script.remove();
-      reject(new Error('JSONP timeout'));
-    }, 10000);
-    window[callbackName] = (data) => {
-      clearTimeout(timeout); delete window[callbackName]; script.remove();
-      resolve(data);
-    };
-    script.onerror = () => { clearTimeout(timeout); delete window[callbackName]; script.remove(); reject(new Error('JSONP failed')); };
-    script.src = endpoint;
-    document.body.appendChild(script);
-  });
-}
+      console.log('Fetching:', endpoint);
+
+      try {
+        portfolioData = await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+
+          const timeout = setTimeout(() => {
+            cleanup();
+            reject(new Error('Request timed out after 15s'));
+          }, 15000);
+
+          function cleanup() {
+            clearTimeout(timeout);
+            delete window[callbackName];
+            if (script.parentNode) script.parentNode.removeChild(script);
+          }
+
+          window[callbackName] = function(data) {
+            cleanup();
+            console.log('Data received:', data);
+            resolve(data);
+          };
+
+          script.onerror = function() {
+            cleanup();
+            reject(new Error('Script load failed — check Apps Script URL and deployment'));
+          };
+
+          script.src = endpoint;
+          document.head.appendChild(script);
+        });
+
+        if (!portfolioData || portfolioData.error) {
+          throw new Error(portfolioData?.error || 'Empty response from Apps Script');
+        }
+
+        document.getElementById('live-badge').style.display = 'flex';
+        document.getElementById('overview-source').textContent = 'Live from Google Sheets';
+        document.getElementById('grades-source').textContent = 'Live · updates automatically';
+        renderAll();
+
+      } catch (err) {
+        console.error('Portfolio fetch failed:', err.message);
+        showError('⚠️ Could not load live data: ' + err.message + '. Check the Apps Script is deployed with "Anyone" access and the doGet function supports ?callback= parameter.');
+        portfolioData = getSampleData();
+        renderAll();
+      } finally {
+        hideLoading();
+      }
+    }
 
 function hideLoading() {
   document.getElementById('loading').classList.add('hidden');
